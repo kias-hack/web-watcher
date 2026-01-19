@@ -1,0 +1,36 @@
+[scrape_config]
+read_timeout = 10
+follow_redirects = true
+
+[notification]
+type = "email"
+email = "kias@gendalf.ru"
+
+[[services]]
+name = "example.com"
+url = "https://example.com"
+read_timeout = 10
+follow_redirects = true
+scrape_period = 100
+
+    [[services.notification]]
+    type = "email"
+    email = "kias@gendalf.ru"
+
+    [[services.notification]]
+    type = "telegram"
+    telegram = "1234567890"
+
+[[services]]
+name = "example1.com"
+url = "https://example1.com"
+read_timeout = 11
+follow_redirects = false
+
+    [[services.notification]]
+    type = "email"
+    email = "kias@gendalf.ru"
+
+    [[services.notification]]
+    type = "telegram"
+    telegram = "1234567890"
