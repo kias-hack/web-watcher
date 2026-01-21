@@ -1,36 +1,55 @@
-[scrape_config]
-read_timeout = 10
-follow_redirects = true
+# Глобальные настройки по умолчанию
+[global]
+  interval = "30s"
+  timeout = "10s"
+  follow_redirects = true
+  max_redirects = 5
+  retries = 2
+  retry_interval = "5s"
+  verify_ssl = true
+  expected_status = [200, 201, 204]
 
-[notification]
-type = "email"
-email = "kias@gendalf.ru"
+# Настройки SMTP сервера
+[smtp]
+  host = "smtp.example.com"
+  port = 587
+  username = "monitor@example.com"
+  password = "secret"
+  from = "monitor@example.com"
+  tls = true
+
+# Глобальные настройки Telegram
+[telegram]
+  bot_token = "123456:ABC-DEF..."
+  default_chat_id = 123456789
+  parse_mode = "Markdown"
+
+# Список сервисов для мониторинга
+[[services]]
+  name = "example.com"
+  url = "https://example.com"
+  interval = "1m"
+  timeout = "5s"
+  
+  [[services.notifications]]
+    type = "email"
+    email = "ops@example.com"
+    on_failure = true
+    on_recovery = true
+  
+  [[services.notifications]]
+    type = "telegram"
+    chat_id = 987654321
+    on_failure = true
+    on_recovery = true
 
 [[services]]
-name = "example.com"
-url = "https://example.com"
-read_timeout = 10
-follow_redirects = true
-scrape_period = 100
-
-    [[services.notification]]
-    type = "email"
-    email = "kias@gendalf.ru"
-
-    [[services.notification]]
+  name = "api.example.com"
+  url = "https://api.example.com/health"
+  expected_status = [200]
+  expected_body_contains = "healthy"
+  
+  [[services.notifications]]
     type = "telegram"
-    telegram = "1234567890"
-
-[[services]]
-name = "example1.com"
-url = "https://example1.com"
-read_timeout = 11
-follow_redirects = false
-
-    [[services.notification]]
-    type = "email"
-    email = "kias@gendalf.ru"
-
-    [[services.notification]]
-    type = "telegram"
-    telegram = "1234567890"
+    # Использует default_chat_id из [telegram]
+    on_failure = true

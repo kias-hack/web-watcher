@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/kias-hack/web-watcher/internal/config"
+	"github.com/kias-hack/web-watcher/internal/watchdog"
 )
 
 func main() {
@@ -18,28 +21,35 @@ func main() {
 
 	slog.Info("starting application initialization", "config path", configPath)
 
-	config := mustGetConfig(configPath)
-
-	slog.Info("config loaded", "config", config)
-}
-
-func mustGetConfig(configPath string) config.Config {
-	if configPath == "" {
-		panic("config path is required")
-	}
-
-	data, err := os.ReadFile(configPath)
+	config, err := config.CreateConfig(configPath)
 	if err != nil {
-		panic(fmt.Errorf("failed to read config file: %w", err))
+		slog.Error("got error while create config", "err", err)
+		return
 	}
 
-	var config config.Config
+	slog.Info("config loaded")
 
-	if _, err := toml.Decode(string(data), &config); err != nil {
-		panic(fmt.Errorf("failed to decode config file: %w", err))
+	ctx := context.Background()
+
+	watchdog := watchdog.NewWatchdog(ctx, config)
+
+	watchdog.Start()
+
+	slog.Info("service started")
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+
+	<-sig
+
+	slog.Info("got signal, shutting down")
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := watchdog.Stop(ctx); err != nil {
+		slog.Error("got error while stoping service", "err", err)
 	}
 
-	// TODO проверить поля Service
-
-	return config
+	slog.Info("Bye!")
 }
