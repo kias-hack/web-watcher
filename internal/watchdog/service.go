@@ -8,10 +8,18 @@ import (
 )
 
 type Service struct {
-	url string
+	url    string
+	method string
 
-	HttpClient *http.Client
-	config     config.Service
+	ScrapeConfig struct {
+		CheckSSL             bool
+		CheckSSLDate         bool
+		SSLNotifyPeriod      int
+		ExpectedStatusCode   int
+		ExpectedBodyContains []string
+	}
+
+	config config.Service
 }
 
 type ServiceReport struct {
@@ -39,46 +47,27 @@ func checkRedirect(followRedirects bool, maxRedirects int) func(*http.Request, [
 }
 
 func NewService(cfg config.Service) (*Service, error) {
-	timeout, err := time.ParseDuration(cfg.Interval)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Service{
-		HttpClient: &http.Client{
-			CheckRedirect: checkRedirect(cfg.FoolowRedirects, cfg.MaxRedirects),
-			Transport:     http.DefaultTransport,
-			Timeout:       timeout,
-		},
 		url: cfg.URL,
 	}, nil
 }
 
-func (s *Service) Run() *ServiceReport {
-	req, err := http.NewRequest(http.MethodGet, s.url, nil)
-	if err != nil {
-		return &ServiceReport{
-			Err: err,
-		}
-	}
+// func (s *Service) Run() *ServiceReport {
+// req, err := http.NewRequest(http.MethodGet, s.url, nil)
+// if err != nil {
+// 	return &ServiceReport{
+// 		Err: err,
+// 	}
+// }
 
-	start := time.Now()
+// start := time.Now()
 
-	resp, err := s.HttpClient.Do(req)
-	if err != nil {
-		return &ServiceReport{
-			Err: err,
-		}
-	}
+// // TODO проверить на ключение строки в ответе
 
-	defer resp.Body.Close()
+// ping := time.Since(start)
 
-	// TODO проверить на ключение строки в ответе
-
-	ping := time.Since(start)
-
-	return &ServiceReport{
-		Status: resp.StatusCode,
-		Ping:   ping,
-	}
-}
+// return &ServiceReport{
+// 	// Status: resp.StatusCode,
+// 	Ping: ping,
+// }
+// }
