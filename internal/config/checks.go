@@ -16,7 +16,7 @@ type CheckConfig struct {
 
 	Expected int `toml:"expected"` // status_code
 
-	Substrings []string `toml:"substrings"` // body_contains
+	Substring string `toml:"substrings"` // body_contains
 
 	// ssl_not_expired
 	WarnDays int `toml:"warn_days"`
@@ -48,7 +48,7 @@ func validateCheckConfig(checks []CheckConfig) error {
 				})
 			}
 		case TYPE_BODY_CONTAINS:
-			if len(check.Substrings) == 0 || check.Substrings[0] == "" {
+			if check.Substring == "" {
 				errs = append(errs, ErrCheckConfigValidation{
 					checkType: TYPE_BODY_CONTAINS,
 					field:     "substring",

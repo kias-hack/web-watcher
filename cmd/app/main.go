@@ -4,20 +4,29 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/kias-hack/web-watcher/internal/bootstrap"
 	"github.com/kias-hack/web-watcher/internal/config"
+	httpcheck "github.com/kias-hack/web-watcher/internal/infra/httpheck"
 	"github.com/kias-hack/web-watcher/internal/watchdog"
 )
 
 func main() {
 	var configPath string
+	var debug bool
 	flag.StringVar(&configPath, "config", "config/config.toml", "path to config file")
+	flag.BoolVar(&debug, "debug", false, "logger in debug mode")
 
 	flag.Parse()
+
+	if debug {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 
 	slog.Info("starting application initialization", "config path", configPath)
 
@@ -31,7 +40,9 @@ func main() {
 
 	ctx := context.Background()
 
-	watchdog := watchdog.NewWatchdog(ctx, config)
+	watchdog := watchdog.NewWatchdog(bootstrap.MapConfigServiceToDomainService(config.Services), httpcheck.NewChecker(&http.Client{
+		Timeout: 2 * time.Second,
+	}))
 
 	watchdog.Start()
 

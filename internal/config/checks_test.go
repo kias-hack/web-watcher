@@ -31,24 +31,16 @@ func TestValidateCheckConfig_Cases(t *testing.T) {
 		{
 			"body_contains - success",
 			CheckConfig{
-				Type:       TYPE_BODY_CONTAINS,
-				Substrings: []string{"ok"},
+				Type:      TYPE_BODY_CONTAINS,
+				Substring: "ok",
 			},
 			false,
 		},
 		{
-			"body_contains - invalid empty slice",
+			"body_contains - invalid empty",
 			CheckConfig{
-				Type:       TYPE_BODY_CONTAINS,
-				Substrings: []string{},
-			},
-			true,
-		},
-		{
-			"body_contains - invalid first empty",
-			CheckConfig{
-				Type:       TYPE_BODY_CONTAINS,
-				Substrings: []string{""},
+				Type:      TYPE_BODY_CONTAINS,
+				Substring: "",
 			},
 			true,
 		},
@@ -126,7 +118,7 @@ func TestValidateCheckConfig_Cases(t *testing.T) {
 		{
 			"max_latency - success",
 			CheckConfig{
-				Type:        TYPE_MAX_LATENCY,
+				Type:         TYPE_MAX_LATENCY,
 				MaxLatencyMs: 500,
 			},
 			false,
@@ -134,7 +126,7 @@ func TestValidateCheckConfig_Cases(t *testing.T) {
 		{
 			"max_latency - invalid",
 			CheckConfig{
-				Type:        TYPE_MAX_LATENCY,
+				Type:         TYPE_MAX_LATENCY,
 				MaxLatencyMs: 0,
 			},
 			true,

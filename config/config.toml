@@ -18,38 +18,14 @@
   from = "monitor@example.com"
   tls = true
 
-# Глобальные настройки Telegram
-[telegram]
-  bot_token = "123456:ABC-DEF..."
-  default_chat_id = 123456789
-  parse_mode = "Markdown"
-
 # Список сервисов для мониторинга
 [[services]]
   name = "example.com"
   url = "https://example.com"
-  interval = "1m"
-  timeout = "5s"
-  
-  [[services.notifications]]
-    type = "email"
-    email = "ops@example.com"
-    on_failure = true
-    on_recovery = true
-  
-  [[services.notifications]]
-    type = "telegram"
-    chat_id = 987654321
-    on_failure = true
-    on_recovery = true
+  interval = "1m0s"
 
 [[services]]
   name = "api.example.com"
   url = "https://api.example.com/health"
   expected_status = [200]
   expected_body_contains = "healthy"
-  
-  [[services.notifications]]
-    type = "telegram"
-    # Использует default_chat_id из [telegram]
-    on_failure = true

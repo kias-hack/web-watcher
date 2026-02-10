@@ -7,78 +7,89 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kias-hack/web-watcher/internal/config"
+	"github.com/kias-hack/web-watcher/internal/domain"
 )
 
 type Watchdog struct {
-	Config *config.AppConfig
+	services        []*domain.Service
+	serviceStatuses map[*domain.Service]*domain.ServiceStatus
+	serviceChecker  domain.ServiceChecker
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     *sync.WaitGroup
 }
 
-func NewWatchdog(ctx context.Context, config *config.AppConfig) *Watchdog {
-	ctx, cancel := context.WithCancel(ctx)
-
+func NewWatchdog(services []*domain.Service, serviceChecker domain.ServiceChecker) *Watchdog {
 	return &Watchdog{
-		ctx:    ctx,
-		cancel: cancel,
-		wg:     &sync.WaitGroup{},
-		Config: config,
+		services:        services,
+		serviceStatuses: make(map[*domain.Service]*domain.ServiceStatus),
+		serviceChecker:  serviceChecker,
 	}
 }
 
-func (o *Watchdog) Start() {
-	for _, serviceCfg := range o.Config.Services {
-		o.wg.Add(1)
-		go o.scrapeService(serviceCfg)
+func (w *Watchdog) Start() error {
+	if w.ctx != nil {
+		return fmt.Errorf("watchdog already started")
 	}
+
+	w.wg = &sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	w.ctx = ctx
+	w.cancel = cancel
+
+	for _, service := range w.services {
+		w.wg.Add(1)
+		go w.worker(service)
+	}
+
+	return nil
 }
 
-func (o *Watchdog) scrapeService(serviceCfg config.Service) {
-	defer o.wg.Done()
-
-	slog.Info("start scrape service", "service_name", serviceCfg.Name, "interval", serviceCfg.Interval)
-
-	interval, err := time.ParseDuration(serviceCfg.Interval)
-	if err != nil {
-		slog.Error("service interval is bad", "interval", serviceCfg.Interval, "service_name", serviceCfg.Name)
-		panic(err)
+func (w *Watchdog) Stop(ctx context.Context) error {
+	if w.ctx == nil {
+		return fmt.Errorf("watchdog already stopped")
 	}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	w.cancel()
 
-	for {
-		select {
-		case <-o.ctx.Done():
-			slog.Info("stop scrape service", "service_name", serviceCfg.Name, "err", o.ctx.Err())
-			return
-		case <-ticker.C:
-			slog.Info("srape service", "service_name", serviceCfg.Name)
-			// TODO scrape service
-		}
-	}
-}
-
-func (o *Watchdog) Stop(ctx context.Context) error {
-	o.cancel()
-
-	waitCancelCh := make(chan struct{}, 1)
-
+	exit := make(chan struct{})
 	go func() {
-		o.wg.Wait()
-
-		close(waitCancelCh)
+		w.wg.Wait()
+		close(exit)
 	}()
 
 	select {
 	case <-ctx.Done():
-		close(waitCancelCh)
-		return fmt.Errorf("context done, while stopping server handlers: %w", ctx.Err())
-	case <-waitCancelCh:
+		return ctx.Err()
+	case <-exit:
+		w.cancel = nil
+		w.ctx = nil
+		return nil
 	}
+}
 
-	return nil
+func (w *Watchdog) worker(service *domain.Service) {
+	defer w.wg.Done()
+
+	logger := slog.With("component", "watchdog_worker", "service_name", service.Name)
+
+	ticker := time.NewTicker(service.Interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-w.ctx.Done():
+			logger.Info("stopping job")
+			return
+		case <-ticker.C:
+			results, err := w.serviceChecker.ServiceCheck(w.ctx, service)
+			if err != nil {
+				logger.Error("error occured when service check", "err", err)
+			}
+
+			logger.Debug("service check", "result", results)
+			// TODO обработка результата
+		}
+	}
 }
