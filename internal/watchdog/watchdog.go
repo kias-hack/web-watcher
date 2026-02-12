@@ -108,24 +108,20 @@ func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain
 	for _, rule := range w.alertRules {
 		logger.Debug("check rule", "rule", rule.Rule)
 
-		if currentStatus < rule.Rule.MinSeverity ||
-			!slices.Contains(rule.Rule.ServiceNames, service.Name) {
+		if !slices.Contains(rule.Rule.ServiceNames, service.Name) {
 			continue
 		}
 
-		if rule.Rule.OnlyOnStatusChange && currentStatus == oldServiceStatus {
-			continue
+		if canSendNotification(rule.Rule, currentStatus, oldServiceStatus) {
+			logger.Debug("send notification")
+
+			rule.Notifier.Notify(w.ctx, &domain.AlertEvent{
+				ServiceName: service.Name,
+				Status:      currentStatus,
+				Results:     result,
+			})
 		}
 
-		logger.Debug("send notification")
-
-		rule.Notifier.Notify(w.ctx, &domain.AlertEvent{
-			ServiceName: service.Name,
-			Status:      currentStatus,
-			Results:     result,
-		})
-
-		return
 	}
 
 	logger.Error("for service not found notifications")

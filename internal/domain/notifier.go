@@ -10,6 +10,7 @@ type AlertRule struct {
 	ServiceNames       []string
 	MinSeverity        Severity
 	OnlyOnStatusChange bool
+	NotifyOnRecovery   bool
 }
 
 type RoutedNotifier struct {

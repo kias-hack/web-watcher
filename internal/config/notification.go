@@ -14,6 +14,7 @@ type Notification struct {
 	ServiceNames       []string `toml:"services"`
 	MinSeverity        string   `toml:"min_severity"`
 	OnlyOnStatusChange bool     `toml:"only_on_status_change"`
+	NotifyOnRecovery   *bool    `toml:"notify_on_recovery"`
 	Type               string   `toml:"type"` // webhook, telegram, email
 
 	URL string `toml:"url"` // webhook

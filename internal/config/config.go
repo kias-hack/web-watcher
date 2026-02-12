@@ -66,6 +66,10 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 		if notification.Type == NOTIFIER_TYPE_EMAIL {
 			haveEmailNotifier = true
 		}
+
+		if config.Notification[idx].NotifyOnRecovery == nil {
+			config.Notification[idx].NotifyOnRecovery = ptr(true)
+		}
 	}
 
 	if haveEmailNotifier {
@@ -96,7 +100,7 @@ func validateService(service *Service) error {
 type AppConfig struct {
 	Services     []*Service     `toml:"services"`
 	Notification []Notification `toml:"notification"`
-	SMTP         SMTPConnection
+	SMTP         SMTPConnection `toml:"smtp"`
 }
 
 type Service struct {
@@ -106,3 +110,5 @@ type Service struct {
 
 	Check []CheckConfig `toml:"check"`
 }
+
+func ptr[T any](v T) *T { return &v }

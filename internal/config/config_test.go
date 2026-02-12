@@ -120,6 +120,33 @@ expected = 200
 
 		assert.ErrorContains(t, err, "empty notifiers")
 	})
+
+	t.Run("check notify_on_recovery default value", func(t *testing.T) {
+		configContent := `
+[[notification]]
+type = "webhook"
+services = ["example.ru"]
+min_severity = "ok"
+url = "https://example.com/"
+
+# Список сервисов для мониторинга
+[[services]]
+name = "example.ru"
+url = "https://example.ru"
+interval = "5s"
+
+[[services.check]]
+type = "status_code"
+expected = 200
+`
+
+		path := createConfig(t, configContent)
+
+		config, err := CreateConfig(path)
+		assert.True(t, *config.Notification[0].NotifyOnRecovery)
+
+		assert.NoError(t, err)
+	})
 }
 
 func createConfig(t *testing.T, content string) string {
