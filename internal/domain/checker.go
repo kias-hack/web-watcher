@@ -93,7 +93,7 @@ func (c *LatencyRule) Check(ctx context.Context, input *CheckInput) *CheckResult
 
 	return &CheckResult{
 		RuleType: component,
-		OK:       CRIT,
+		OK:       WARN,
 		Message:  fmt.Sprintf("ответ сервера превысил %s и составил %s", c.maxLatencyMs, input.Latency),
 	}
 }

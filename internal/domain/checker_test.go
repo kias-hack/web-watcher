@@ -48,7 +48,7 @@ func TestLatencyRule(t *testing.T) {
 		input := &CheckInput{Latency: 500 * time.Millisecond}
 		got := rule.Check(t.Context(), input)
 		assert.Equal(t, "latency_checker", got.RuleType)
-		assert.Equal(t, Severity(CRIT), got.OK)
+		assert.Equal(t, Severity(WARN), got.OK)
 		assert.Equal(t, "ответ сервера превысил 200ms и составил 500ms", got.Message)
 	})
 }

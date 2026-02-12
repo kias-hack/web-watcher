@@ -9,13 +9,12 @@ type Service struct {
 	Name     string
 	URL      string
 	Interval time.Duration
-
-	Status *ServiceStatus
-
-	Rules []CheckRule
+	Rules    []CheckRule
 }
 
-type ServiceStatus struct{}
+type ServiceStatus struct {
+	Status Severity
+}
 
 type ServiceChecker interface {
 	ServiceCheck(ctx context.Context, service *Service) ([]*CheckResult, error)

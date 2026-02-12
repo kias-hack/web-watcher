@@ -1,8 +1,11 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	"github.com/kias-hack/web-watcher/internal/config"
 	"github.com/kias-hack/web-watcher/internal/domain"
+	"github.com/kias-hack/web-watcher/internal/infra/notification"
 )
 
 func MapConfigServiceToDomainService(from []*config.Service) []*domain.Service {
@@ -37,4 +40,56 @@ func MapConfigServiceToDomainService(from []*config.Service) []*domain.Service {
 	}
 
 	return result
+}
+
+func MapConfigNotifierToDomainRoutedNotifier(from []config.Notification) ([]domain.RoutedNotifier, error) {
+	var result []domain.RoutedNotifier
+
+	for _, cfgNotification := range from {
+		severity, err := parseSeverity(cfgNotification.MinSeverity)
+		if err != nil {
+			return nil, fmt.Errorf("failed parse severity for rule: %w", err)
+		}
+
+		notifier, err := createNotifierfromConfig(cfgNotification)
+		if err != nil {
+			return nil, fmt.Errorf("failed create notifier: %w", err)
+		}
+
+		result = append(result, domain.RoutedNotifier{
+			Rule: domain.AlertRule{
+				ServiceNames:       cfgNotification.ServiceNames,
+				MinSeverity:        severity,
+				OnlyOnStatusChange: cfgNotification.OnlyOnStatusChange,
+			},
+			Notifier: notifier,
+		})
+	}
+
+	return result, nil
+}
+
+func createNotifierfromConfig(cfg config.Notification) (domain.Notifier, error) {
+	if cfg.Type == config.NOTIFIER_TYPE_WEBHOOK {
+		return notification.NewWebHookNotifier(cfg.URL), nil
+	}
+
+	if cfg.Type == config.NOTIFIER_TYPE_EMAIL {
+		return notification.NewEmailNotifier(cfg.EmailTo), nil
+	}
+
+	return nil, fmt.Errorf("unknown notifier type: %s", cfg.Type)
+}
+
+func parseSeverity(severity string) (domain.Severity, error) {
+	switch severity {
+	case "ok":
+		return domain.OK, nil
+	case "warn":
+		return domain.WARN, nil
+	case "crit":
+		return domain.CRIT, nil
+	}
+
+	return 0, fmt.Errorf("unknown severity value: %s", severity)
 }

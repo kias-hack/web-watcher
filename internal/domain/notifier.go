@@ -6,7 +6,19 @@ type Notifier interface {
 	Notify(ctx context.Context, alert *AlertEvent)
 }
 
+type AlertRule struct {
+	ServiceNames       []string
+	MinSeverity        Severity
+	OnlyOnStatusChange bool
+}
+
+type RoutedNotifier struct {
+	Rule     AlertRule
+	Notifier Notifier
+}
+
 type AlertEvent struct {
-	Status  Severity
-	Results []*CheckResult
+	ServiceName string
+	Status      Severity
+	Results     []*CheckResult
 }

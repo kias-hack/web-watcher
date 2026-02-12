@@ -30,14 +30,47 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 		return nil, errors.New("services not found")
 	}
 
+	serviceNames := make(map[string]struct{})
 	for idx, service := range config.Services {
 		slog.Debug("service", "o", service)
 		if err := validateService(service); err != nil {
 			return nil, fmt.Errorf("found error in service[%d]: %w", idx, err)
 		}
 
+		if len(service.Check) == 0 {
+			return nil, fmt.Errorf("service [%d] - checks can`t be empty", idx)
+		}
+
 		if err := validateCheckConfig(service.Check); err != nil {
 			return nil, fmt.Errorf("found error in service(%s).check: %w", service.Name, err)
+		}
+
+		if _, ok := serviceNames[service.Name]; ok {
+			return nil, fmt.Errorf("service name duplicate: %s", service.Name)
+		}
+
+		serviceNames[service.Name] = struct{}{}
+	}
+
+	if len(config.Notification) == 0 {
+		return nil, fmt.Errorf("empty notifiers")
+	}
+
+	var haveEmailNotifier bool
+	for idx, notification := range config.Notification {
+		slog.Debug("check notification", "o", notification)
+		if err := validateNotification(notification); err != nil {
+			return nil, fmt.Errorf("found error in service[%d]: %w", idx, err)
+		}
+
+		if notification.Type == NOTIFIER_TYPE_EMAIL {
+			haveEmailNotifier = true
+		}
+	}
+
+	if haveEmailNotifier {
+		if err := validateSMTP(config.SMTP); err != nil {
+			return nil, fmt.Errorf("require smtp settings for email notifier: %w", err)
 		}
 	}
 
@@ -61,7 +94,9 @@ func validateService(service *Service) error {
 }
 
 type AppConfig struct {
-	Services []*Service `toml:"services"`
+	Services     []*Service     `toml:"services"`
+	Notification []Notification `toml:"notification"`
+	SMTP         SMTPConnection
 }
 
 type Service struct {
@@ -69,18 +104,5 @@ type Service struct {
 	URL      string        `toml:"url"`
 	Interval time.Duration `toml:"interval"`
 
-	Check        []CheckConfig  `toml:"check"`
-	Notification []Notification `toml:"notification"`
-}
-
-type Notification struct {
-	Type string `toml:"type"` // webhook, telegram, email
-
-	URL string `toml:"url"` // webhook
-
-	// telegram
-	BotToken string `toml:"bot_token"`
-	ChatId   string `toml:"chat_id"`
-
-	EmailTo []string `toml:"email_to"` // email
+	Check []CheckConfig `toml:"check"`
 }

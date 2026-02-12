@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,17 +15,21 @@ type Watchdog struct {
 	services        []*domain.Service
 	serviceStatuses map[*domain.Service]*domain.ServiceStatus
 	serviceChecker  domain.ServiceChecker
+	alertRules      []domain.RoutedNotifier
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     *sync.WaitGroup
+	mu     sync.Mutex
 }
 
-func NewWatchdog(services []*domain.Service, serviceChecker domain.ServiceChecker) *Watchdog {
+func NewWatchdog(services []*domain.Service, serviceChecker domain.ServiceChecker, alertRules []domain.RoutedNotifier) *Watchdog {
 	return &Watchdog{
 		services:        services,
 		serviceStatuses: make(map[*domain.Service]*domain.ServiceStatus),
 		serviceChecker:  serviceChecker,
+		mu:              sync.Mutex{},
+		alertRules:      alertRules,
 	}
 }
 
@@ -69,6 +74,63 @@ func (w *Watchdog) Stop(ctx context.Context) error {
 	}
 }
 
+func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain.CheckResult) {
+	logger := slog.With("component", "watchdog", "op", "handleServiceResult", "service", service.Name)
+
+	var currentStatus domain.Severity = domain.OK
+	for _, res := range result {
+		if res.OK == domain.CRIT {
+			currentStatus = domain.CRIT
+			break
+		}
+
+		if res.OK == domain.WARN {
+			currentStatus = domain.CRIT
+		}
+	}
+
+	var oldServiceStatus domain.Severity
+
+	w.mu.Lock()
+	serviceStatus, ok := w.serviceStatuses[service]
+	if !ok {
+		serviceStatus = &domain.ServiceStatus{
+			Status: domain.OK,
+		}
+		w.serviceStatuses[service] = serviceStatus
+	}
+	oldServiceStatus = serviceStatus.Status
+	serviceStatus.Status = currentStatus
+	w.mu.Unlock()
+
+	logger.Debug("got service status", "severity", currentStatus, "old_status", oldServiceStatus)
+
+	for _, rule := range w.alertRules {
+		logger.Debug("check rule", "rule", rule.Rule)
+
+		if currentStatus < rule.Rule.MinSeverity ||
+			!slices.Contains(rule.Rule.ServiceNames, service.Name) {
+			continue
+		}
+
+		if rule.Rule.OnlyOnStatusChange && currentStatus == oldServiceStatus {
+			continue
+		}
+
+		logger.Debug("send notification")
+
+		rule.Notifier.Notify(w.ctx, &domain.AlertEvent{
+			ServiceName: service.Name,
+			Status:      currentStatus,
+			Results:     result,
+		})
+
+		return
+	}
+
+	logger.Error("for service not found notifications")
+}
+
 func (w *Watchdog) worker(service *domain.Service) {
 	defer w.wg.Done()
 
@@ -88,8 +150,7 @@ func (w *Watchdog) worker(service *domain.Service) {
 				logger.Error("error occured when service check", "err", err)
 			}
 
-			logger.Debug("service check", "result", results)
-			// TODO обработка результата
+			w.handleServiceResult(service, results)
 		}
 	}
 }

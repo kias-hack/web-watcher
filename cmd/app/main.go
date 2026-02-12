@@ -40,9 +40,15 @@ func main() {
 
 	ctx := context.Background()
 
+	ruleNotifier, err := bootstrap.MapConfigNotifierToDomainRoutedNotifier(config.Notification)
+	if err != nil {
+		slog.Error("failed create notification rules", "err", err)
+		os.Exit(1)
+	}
+
 	watchdog := watchdog.NewWatchdog(bootstrap.MapConfigServiceToDomainService(config.Services), httpcheck.NewChecker(&http.Client{
 		Timeout: 2 * time.Second,
-	}))
+	}), ruleNotifier)
 
 	watchdog.Start()
 
