@@ -40,7 +40,7 @@ func main() {
 
 	ctx := context.Background()
 
-	ruleNotifier, err := bootstrap.MapConfigNotifierToDomainRoutedNotifier(config.Notification)
+	ruleNotifier, err := bootstrap.MapConfigNotifierToDomainRoutedNotifier(*config)
 	if err != nil {
 		slog.Error("failed create notification rules", "err", err)
 		os.Exit(1)

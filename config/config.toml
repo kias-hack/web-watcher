@@ -1,31 +1,43 @@
-# Глобальные настройки по умолчанию
-[global]
-  interval = "30s"
-  timeout = "10s"
-  follow_redirects = true
-  max_redirects = 5
-  retries = 2
-  retry_interval = "5s"
-  verify_ssl = true
-  expected_status = [200, 201, 204]
-
 # Настройки SMTP сервера
 [smtp]
-  host = "smtp.example.com"
-  port = 587
-  username = "monitor@example.com"
-  password = "secret"
-  from = "monitor@example.com"
-  tls = true
+host = "smtp.example.ru"
+port = 587
+username = "from"
+password = "password"
+from = "from@example.ru"
+
+[[notification]]
+services = ["example.com"]
+min_severity = "ok"
+email_to = ["test@example.ru"]
+type = "email"
+only_on_status_change = true
+notify_on_recovery = true
 
 # Список сервисов для мониторинга
 [[services]]
-  name = "example.com"
-  url = "https://example.com"
-  interval = "1m0s"
+name = "example.com"
+url = "https://example.ru"
+interval = "5s"
 
-[[services]]
-  name = "api.example.com"
-  url = "https://api.example.com/health"
-  expected_status = [200]
-  expected_body_contains = "healthy"
+[[services.check]]
+type = "status_code"
+expected = 200
+
+[[services.check]]
+type = "max_latency"
+max_latency_ms = 500
+
+[[services.check]]
+type = "ssl_not_expired"
+warn_days = 30
+crit_days = 7
+
+[[services.check]]
+type = "body_contains"
+substrings = "<title>title</title>"
+
+[[services.check]]
+type = "header"
+header_name = "x-powered-cms"
+header_value = "some cms"

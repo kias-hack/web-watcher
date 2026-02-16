@@ -1,16 +1,20 @@
 package domain
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
 
+	"github.com/kias-hack/web-watcher/internal/config"
 	"github.com/tidwall/gjson"
+	"golang.org/x/net/html/charset"
 )
 
 type Severity int
@@ -49,7 +53,7 @@ type StatusCodeRule struct {
 }
 
 func (c *StatusCodeRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "status_code_checker"
+	component := config.TYPE_STATUS_CODE
 	logger := slog.With("component", component)
 
 	if input.Response.StatusCode == c.expected {
@@ -79,7 +83,7 @@ type LatencyRule struct {
 }
 
 func (c *LatencyRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "latency_checker"
+	component := config.TYPE_MAX_LATENCY
 	logger := slog.With("component", component)
 
 	if input.Latency <= c.maxLatencyMs {
@@ -109,10 +113,13 @@ type BodyMatchRule struct {
 }
 
 func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "body_match_checker"
+	component := config.TYPE_BODY_CONTAINS
 	logger := slog.With("component", component)
 
-	if strings.Contains(string(input.Body), c.substring) {
+	bodyStr := bodyAsUTF8(input)
+	normBody := normalizeSpace(bodyStr)
+	normSub := normalizeSpace(c.substring)
+	if strings.Contains(normBody, normSub) {
 		return &CheckResult{
 			RuleType: component,
 			OK:       OK,
@@ -124,8 +131,50 @@ func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 	return &CheckResult{
 		RuleType: component,
 		OK:       CRIT,
-		Message:  fmt.Sprintf("отсутствует строка '%s'", c.substring),
+		Message:  fmt.Sprintf("отсутствует строка - %s", c.substring),
 	}
+}
+
+// bodyAsUTF8 декодирует тело ответа в UTF-8. Сначала пробует определить кодировку по содержимому
+// (часто сервер отдаёт charset=utf-8 в заголовке, а тело в windows-1251).
+func bodyAsUTF8(input *CheckInput) string {
+	if input == nil {
+		return ""
+	}
+	if input.Response == nil {
+		return string(input.Body)
+	}
+	// Определение по контенту — не доверяем заголовку (у Bitrix часто врут charset)
+	r, err := charset.NewReader(bytes.NewReader(input.Body), "")
+	if err != nil {
+		return string(input.Body)
+	}
+	decoded, err := io.ReadAll(r)
+	if err != nil {
+		return string(input.Body)
+	}
+	return string(decoded)
+}
+
+// normalizeSpace для поиска: заменяет \u00a0 на пробел и схлопывает повторяющиеся пробелы.
+func normalizeSpace(s string) string {
+	var b strings.Builder
+	prevSpace := false
+	for _, r := range s {
+		if r == '\u00a0' {
+			r = ' '
+		}
+		if r == ' ' || r == '\t' {
+			if !prevSpace {
+				b.WriteRune(' ')
+				prevSpace = true
+			}
+			continue
+		}
+		prevSpace = false
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 func NewHeaderRule(name string, value string) CheckRule {
@@ -141,7 +190,7 @@ type HeaderRule struct {
 }
 
 func (c *HeaderRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "header_checker"
+	component := config.TYPE_HEADER
 	logger := slog.With("component", component)
 
 	value := input.Response.Header.Get(c.name)
@@ -185,7 +234,7 @@ type JSONFieldRule struct {
 }
 
 func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "json_field_checker"
+	component := config.TYPE_JSON_FIELD
 	logger := slog.With("component", component)
 
 	if !json.Valid(input.Body) {
@@ -244,7 +293,7 @@ type SSLChecker struct {
 }
 
 func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) *CheckResult {
-	component := "ssl_not_expired"
+	component := config.TYPE_SSL_NOT_EXPIRED
 	logger := slog.With("component", component)
 
 	if input.Response.TLS == nil {

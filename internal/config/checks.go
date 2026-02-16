@@ -52,7 +52,7 @@ func validateCheckConfig(checks []CheckConfig) error {
 				errs = append(errs, ErrCheckConfigValidation{
 					checkType: TYPE_BODY_CONTAINS,
 					field:     "substring",
-					msg:       "count must be greater than 0 and contain non-empty string",
+					msg:       "должна быть непустая строка",
 				})
 			}
 		case TYPE_SSL_NOT_EXPIRED:

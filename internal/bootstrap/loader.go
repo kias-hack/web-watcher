@@ -14,17 +14,18 @@ func MapConfigServiceToDomainService(from []*config.Service) []*domain.Service {
 	for _, cfgService := range from {
 		var rules []domain.CheckRule
 		for _, cfgCheck := range cfgService.Check {
-			if cfgCheck.Type == config.TYPE_STATUS_CODE {
+			switch cfgCheck.Type {
+			case config.TYPE_STATUS_CODE:
 				rules = append(rules, domain.NewStatusCodeRule(cfgCheck.Expected))
-			} else if cfgCheck.Type == config.TYPE_BODY_CONTAINS {
+			case config.TYPE_BODY_CONTAINS:
 				rules = append(rules, domain.NewBodyMatchRule(cfgCheck.Substring))
-			} else if cfgCheck.Type == config.TYPE_HEADER {
+			case config.TYPE_HEADER:
 				rules = append(rules, domain.NewHeaderRule(cfgCheck.HeaderName, cfgCheck.HeaderValue))
-			} else if cfgCheck.Type == config.TYPE_JSON_FIELD {
+			case config.TYPE_JSON_FIELD:
 				rules = append(rules, domain.NewJSONFieldRule(cfgCheck.JsonPath, cfgCheck.JsonExpected))
-			} else if cfgCheck.Type == config.TYPE_MAX_LATENCY {
+			case config.TYPE_MAX_LATENCY:
 				rules = append(rules, domain.NewLatencyRule(cfgCheck.MaxLatencyMs))
-			} else if cfgCheck.Type == config.TYPE_SSL_NOT_EXPIRED {
+			case config.TYPE_SSL_NOT_EXPIRED:
 				rules = append(rules, domain.NewSSLChecker(cfgCheck.WarnDays, cfgCheck.CritDays))
 			}
 		}
@@ -42,16 +43,16 @@ func MapConfigServiceToDomainService(from []*config.Service) []*domain.Service {
 	return result
 }
 
-func MapConfigNotifierToDomainRoutedNotifier(from []config.Notification) ([]domain.RoutedNotifier, error) {
+func MapConfigNotifierToDomainRoutedNotifier(cfg config.AppConfig) ([]domain.RoutedNotifier, error) {
 	var result []domain.RoutedNotifier
 
-	for _, cfgNotification := range from {
+	for _, cfgNotification := range cfg.Notification {
 		severity, err := parseSeverity(cfgNotification.MinSeverity)
 		if err != nil {
 			return nil, fmt.Errorf("failed parse severity for rule: %w", err)
 		}
 
-		notifier, err := createNotifierfromConfig(cfgNotification)
+		notifier, err := createNotifierfromConfig(cfgNotification, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed create notifier: %w", err)
 		}
@@ -69,16 +70,16 @@ func MapConfigNotifierToDomainRoutedNotifier(from []config.Notification) ([]doma
 	return result, nil
 }
 
-func createNotifierfromConfig(cfg config.Notification) (domain.Notifier, error) {
-	if cfg.Type == config.NOTIFIER_TYPE_WEBHOOK {
-		return notification.NewWebHookNotifier(cfg.URL), nil
+func createNotifierfromConfig(notifierCfg config.Notification, cfg config.AppConfig) (domain.Notifier, error) {
+	if notifierCfg.Type == config.NOTIFIER_TYPE_WEBHOOK {
+		return notification.NewWebHookNotifier(notifierCfg.URL), nil
 	}
 
-	if cfg.Type == config.NOTIFIER_TYPE_EMAIL {
-		return notification.NewEmailNotifier(cfg.EmailTo), nil
+	if notifierCfg.Type == config.NOTIFIER_TYPE_EMAIL {
+		return notification.NewEmailNotifier(cfg.SMTP, notifierCfg.EmailTo), nil
 	}
 
-	return nil, fmt.Errorf("unknown notifier type: %s", cfg.Type)
+	return nil, fmt.Errorf("unknown notifier type: %s", notifierCfg.Type)
 }
 
 func parseSeverity(severity string) (domain.Severity, error) {

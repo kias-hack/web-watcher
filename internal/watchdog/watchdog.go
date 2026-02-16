@@ -105,12 +105,17 @@ func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain
 
 	logger.Debug("got service status", "severity", currentStatus, "old_status", oldServiceStatus)
 
+	var foundNotifier bool = false
 	for _, rule := range w.alertRules {
 		logger.Debug("check rule", "rule", rule.Rule)
+
+		logger.Debug("search notifier", "rule", rule.Rule.ServiceNames, "service", service.Name)
 
 		if !slices.Contains(rule.Rule.ServiceNames, service.Name) {
 			continue
 		}
+
+		foundNotifier = true
 
 		if canSendNotification(rule.Rule, currentStatus, oldServiceStatus) {
 			logger.Debug("send notification")
@@ -121,10 +126,11 @@ func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain
 				Results:     result,
 			})
 		}
-
 	}
 
-	logger.Error("for service not found notifications")
+	if !foundNotifier {
+		logger.Error("for service not found notifications")
+	}
 }
 
 func (w *Watchdog) worker(service *domain.Service) {
