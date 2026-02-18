@@ -1,6 +1,9 @@
 package config
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 const (
 	TYPE_STATUS_CODE     = "status_code"
@@ -119,6 +122,8 @@ func validateCheckConfig(checks []CheckConfig) error {
 					msg:       "must be greater than 0",
 				})
 			}
+		default:
+			errs = append(errs, fmt.Errorf("unknown check type: %s", check.Type))
 		}
 	}
 

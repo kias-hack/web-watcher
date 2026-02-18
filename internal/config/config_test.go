@@ -147,6 +147,36 @@ expected = 200
 
 		assert.NoError(t, err)
 	})
+
+	t.Run("got check with unknown type", func(t *testing.T) {
+		configContent := `
+[[notification]]
+type = "webhook"
+services = ["example.ru"]
+min_severity = "ok"
+url = "https://example.com/"
+
+# Список сервисов для мониторинга
+[[services]]
+name = "example.ru"
+url = "https://example.ru"
+interval = "5s"
+
+[[services.check]]
+type = "status_code"
+expected = 200
+
+[[services.check]]
+type = "any_check"
+expected = 200
+`
+
+		path := createConfig(t, configContent)
+
+		_, err := CreateConfig(path)
+
+		assert.Error(t, err)
+	})
 }
 
 func createConfig(t *testing.T, content string) string {
