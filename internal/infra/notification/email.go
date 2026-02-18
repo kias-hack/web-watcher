@@ -46,6 +46,7 @@ var ruleNameMap = map[string]string{
 	config.TYPE_MAX_LATENCY:     "Превышение времени ответа",
 	config.TYPE_STATUS_CODE:     "Код ответа",
 	config.TYPE_SSL_NOT_EXPIRED: "Сертификат",
+	"available":                 "Ошибка сети",
 }
 
 var levelNameMap = map[domain.Severity]string{

@@ -1,0 +1,22 @@
+# Запуск через systemd
+
+Собрать: `go build -o web-watcher ./cmd/app`
+
+Установить бинарник: `sudo cp web-watcher /usr/local/bin/`
+
+Создать конфиг: `sudo mkdir -p /etc/web-watcher && sudo cp config.toml /etc/web-watcher/`
+
+Скопировать unit: `sudo cp deploy/web-watcher.service /etc/systemd/system/`
+
+Включить и запустить:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable web-watcher
+sudo systemctl start web-watcher
+sudo systemctl status web-watcher
+```
+
+Логи: `journalctl -u web-watcher -f`
+
+Если бинарник или конфиг в других путях — создать override:
+`sudo systemctl edit web-watcher` и задать свои `ExecStart=` и при необходимости `WorkingDirectory=`.

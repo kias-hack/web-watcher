@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -176,6 +177,116 @@ expected = 200
 		_, err := CreateConfig(path)
 
 		assert.Error(t, err)
+	})
+
+	t.Run("check default repeat interval", func(t *testing.T) {
+		configContent := `
+[[notification]]
+type = "webhook"
+services = ["example.ru"]
+min_severity = "ok"
+url = "https://example.com/"
+
+# Список сервисов для мониторинга
+[[services]]
+name = "example.ru"
+url = "https://example.ru"
+interval = "5s"
+
+[[services.check]]
+type = "status_code"
+expected = 200
+`
+
+		path := createConfig(t, configContent)
+
+		cfg, err := CreateConfig(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 4*time.Hour, cfg.Notification[0].RepeatInterval)
+	})
+
+	t.Run("service with templates gets checks from templates", func(t *testing.T) {
+		configContent := `
+[[notification]]
+type = "webhook"
+services = ["svc"]
+min_severity = "ok"
+url = "https://example.com/"
+
+[[templates]]
+name = "http_ok"
+[[templates.checks]]
+type = "status_code"
+expected = 200
+[[templates.checks]]
+type = "max_latency"
+max_latency_ms = 500
+
+[[templates]]
+name = "ssl"
+[[templates.checks]]
+type = "ssl_not_expired"
+warn_days = 30
+crit_days = 7
+
+[[services]]
+name = "svc"
+url = "https://example.ru"
+interval = "10s"
+use_templates = ["http_ok", "ssl"]
+
+[[services.check]]
+type = "body_contains"
+substrings = "ok"
+`
+
+		path := createConfig(t, configContent)
+
+		cfg, err := CreateConfig(path)
+		assert.NoError(t, err)
+
+		assert.Len(t, cfg.Services, 1)
+		checks := cfg.Services[0].Check
+		assert.Len(t, checks, 4)
+
+		assert.Equal(t, "body_contains", checks[0].Type)
+		assert.Equal(t, "ok", checks[0].Substring)
+		assert.Equal(t, "status_code", checks[1].Type)
+		assert.Equal(t, 200, checks[1].Expected)
+		assert.Equal(t, "max_latency", checks[2].Type)
+		assert.Equal(t, 500, checks[2].MaxLatencyMs)
+		assert.Equal(t, "ssl_not_expired", checks[3].Type)
+		assert.Equal(t, 30, checks[3].WarnDays)
+		assert.Equal(t, 7, checks[3].CritDays)
+	})
+
+	t.Run("service with unknown template fails", func(t *testing.T) {
+		configContent := `
+[[notification]]
+type = "webhook"
+services = ["svc"]
+min_severity = "ok"
+url = "https://example.com/"
+
+[[templates]]
+name = "http_ok"
+[[templates.checks]]
+type = "status_code"
+expected = 200
+
+[[services]]
+name = "svc"
+url = "https://example.ru"
+interval = "10s"
+use_templates = ["http_ok", "missing"]
+`
+
+		path := createConfig(t, configContent)
+
+		_, err := CreateConfig(path)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "template `missing` not found")
 	})
 }
 

@@ -13,9 +13,10 @@ type Service struct {
 }
 
 type ServiceStatus struct {
-	Status Severity
+	LastSent     time.Time
+	CheckResults []CheckResult
 }
 
 type ServiceChecker interface {
-	ServiceCheck(ctx context.Context, service *Service) ([]*CheckResult, error)
+	ServiceCheck(ctx context.Context, service *Service) ([]CheckResult, error)
 }

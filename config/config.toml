@@ -1,24 +1,67 @@
-# Настройки SMTP сервера
+# Таймаут HTTP-запроса (по умолчанию 2s, если не задано)
+[http]
+timeout = "15s"
+
 [smtp]
 host = "smtp.example.ru"
 port = 587
 username = "from"
 password = "password"
 from = "from@example.ru"
+skip_tls = false
 
 [[notification]]
-services = ["example.com"]
-min_severity = "ok"
-email_to = ["test@example.ru"]
 type = "email"
+services = ["example.com", "example.ru", "api.example.net"]
+email_to = ["test@example.ru"]
 only_on_status_change = true
 notify_on_recovery = true
+min_severity = "warn"
+repeat_interval = "10m"
 
-# Список сервисов для мониторинга
+[[templates]]
+name = "default"
+
+[[templates.checks]]
+type = "status_code"
+expected = 200
+
+[[templates.checks]]
+type = "max_latency"
+max_latency_ms = 500
+
+[[templates.checks]]
+type = "ssl_not_expired"
+warn_days = 30
+crit_days = 7
+
+[[templates.checks]]
+type = "body_contains"
+substrings = "<title>Example</title>"
+
+[[templates.checks]]
+type = "header"
+header_name = "x-powered-by"
+header_value = "Example"
+
+# Сервисы через шаблон
 [[services]]
 name = "example.com"
-url = "https://example.ru"
+url = "https://example.com/"
 interval = "5s"
+use_templates = ["default"]
+
+[[services]]
+name = "example.ru"
+url = "https://example.ru/"
+interval = "5s"
+use_templates = ["default"]
+
+# Сервис со своими проверками (без шаблона)
+[[services]]
+name = "api.example.net"
+url = "https://api.example.net/health"
+interval = "10s"
 
 [[services.check]]
 type = "status_code"
@@ -26,18 +69,9 @@ expected = 200
 
 [[services.check]]
 type = "max_latency"
-max_latency_ms = 500
+max_latency_ms = 300
 
 [[services.check]]
-type = "ssl_not_expired"
-warn_days = 30
-crit_days = 7
-
-[[services.check]]
-type = "body_contains"
-substrings = "<title>title</title>"
-
-[[services.check]]
-type = "header"
-header_name = "x-powered-cms"
-header_value = "some cms"
+type = "json_field"
+json_path = "status"
+json_expected = "ok"

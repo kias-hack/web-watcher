@@ -35,11 +35,10 @@ type CheckResult struct {
 	RuleType string
 	OK       Severity
 	Message  string
-	Details  map[string]string
 }
 
 type CheckRule interface {
-	Check(ctx context.Context, input *CheckInput) *CheckResult
+	Check(ctx context.Context, input *CheckInput) CheckResult
 }
 
 func NewStatusCodeRule(expected int) CheckRule {
@@ -52,12 +51,12 @@ type StatusCodeRule struct {
 	expected int
 }
 
-func (c *StatusCodeRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *StatusCodeRule) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_STATUS_CODE
 	logger := slog.With("component", component)
 
 	if input.Response.StatusCode == c.expected {
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       OK,
 		}
@@ -65,7 +64,7 @@ func (c *StatusCodeRule) Check(ctx context.Context, input *CheckInput) *CheckRes
 
 	logger.Debug("registered error", "expected", c.expected, "actual", input.Response.StatusCode)
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       CRIT,
 		Message:  fmt.Sprintf("ожидается статус %d, получен %d", c.expected, input.Response.StatusCode),
@@ -82,12 +81,12 @@ type LatencyRule struct {
 	maxLatencyMs time.Duration
 }
 
-func (c *LatencyRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *LatencyRule) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_MAX_LATENCY
 	logger := slog.With("component", component)
 
 	if input.Latency <= c.maxLatencyMs {
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       OK,
 		}
@@ -95,7 +94,7 @@ func (c *LatencyRule) Check(ctx context.Context, input *CheckInput) *CheckResult
 
 	logger.Debug("registered error", "maxLatencyMs", c.maxLatencyMs, "actual", input.Latency)
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       WARN,
 		Message:  fmt.Sprintf("ответ сервера превысил %s и составил %s", c.maxLatencyMs, input.Latency),
@@ -112,7 +111,7 @@ type BodyMatchRule struct {
 	substring string
 }
 
-func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_BODY_CONTAINS
 	logger := slog.With("component", component)
 
@@ -120,7 +119,7 @@ func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 	normBody := normalizeSpace(bodyStr)
 	normSub := normalizeSpace(c.substring)
 	if strings.Contains(normBody, normSub) {
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       OK,
 		}
@@ -128,7 +127,7 @@ func (c *BodyMatchRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 
 	logger.Debug("registered error", "substring", c.substring)
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       CRIT,
 		Message:  fmt.Sprintf("отсутствует строка - %s", c.substring),
@@ -189,7 +188,7 @@ type HeaderRule struct {
 	value string
 }
 
-func (c *HeaderRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *HeaderRule) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_HEADER
 	logger := slog.With("component", component)
 
@@ -198,7 +197,7 @@ func (c *HeaderRule) Check(ctx context.Context, input *CheckInput) *CheckResult 
 	if value == "" {
 		logger.Debug("registered error, header not found", "header", c.name)
 
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("заголовок '%s' отсутствует", c.name),
@@ -208,14 +207,14 @@ func (c *HeaderRule) Check(ctx context.Context, input *CheckInput) *CheckResult 
 	if value != c.value {
 		logger.Debug("registered error, value not equal", "header", c.name, "expected_value", c.value, "actual_value", value)
 
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("значение '%s' заголовока '%s' не соответствует значению '%s'", value, c.name, c.value),
 		}
 	}
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       OK,
 	}
@@ -233,13 +232,13 @@ type JSONFieldRule struct {
 	expected any
 }
 
-func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_JSON_FIELD
 	logger := slog.With("component", component)
 
 	if !json.Valid(input.Body) {
 		logger.Debug("response format of body not is json")
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  "ошибка парсинга тела сообщения",
@@ -248,7 +247,7 @@ func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 
 	if input.Response.Header.Get("Content-Type") != "application/json" {
 		logger.Debug("response type in header not valid", "content-type", input.Response.Header.Get("Content-Type"))
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("некорректный заголовок ответа для ответа json - %s", input.Response.Header.Get("Content-Type")),
@@ -258,7 +257,7 @@ func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 	result := gjson.Get(string(input.Body), c.path)
 	if !result.Exists() {
 		logger.Debug("the path not found", "path", c.path)
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("путь '%s' отсутствует в ответе сервера", c.path),
@@ -267,14 +266,14 @@ func (c *JSONFieldRule) Check(ctx context.Context, input *CheckInput) *CheckResu
 
 	if !reflect.DeepEqual(result.Value(), c.expected) {
 		logger.Debug("value under path not valid", "path", c.path, "expected", c.expected, "actual", result.Value())
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("'%s' значение %v не соответсвует ожидаемому %v", c.path, result.Value(), c.expected),
 		}
 	}
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       OK,
 	}
@@ -292,13 +291,13 @@ type SSLChecker struct {
 	critDays int
 }
 
-func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) *CheckResult {
+func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) CheckResult {
 	component := config.TYPE_SSL_NOT_EXPIRED
 	logger := slog.With("component", component)
 
 	if input.Response.TLS == nil {
 		logger.Debug("tls info not found in server response")
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  "отсутствует информация о сертификате в ответе сервера",
@@ -307,16 +306,7 @@ func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) *CheckResult 
 
 	if len(input.Response.TLS.PeerCertificates) == 0 {
 		logger.Warn("any certificates not found in server response")
-		return &CheckResult{
-			RuleType: component,
-			OK:       CRIT,
-			Message:  "сертификаты отсутствуют в ответе сервера",
-		}
-	}
-
-	if len(input.Response.TLS.PeerCertificates) == 0 {
-		logger.Warn("any certificates not found in server response")
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  "сертификаты отсутствуют в ответе сервера",
@@ -327,7 +317,7 @@ func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) *CheckResult 
 	untilDays := int(time.Until(cert.NotAfter).Hours()) / 24
 	if untilDays < c.critDays {
 		logger.Debug("certificate expire very soon")
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       CRIT,
 			Message:  fmt.Sprintf("до окончания сертификата осталось дней - %d", untilDays),
@@ -336,14 +326,14 @@ func (c *SSLChecker) Check(ctx context.Context, input *CheckInput) *CheckResult 
 
 	if untilDays < c.warnDays {
 		logger.Debug("certificate expire soon")
-		return &CheckResult{
+		return CheckResult{
 			RuleType: component,
 			OK:       WARN,
-			Message:  "сертификаты отсутствуют в ответе сервера",
+			Message:  fmt.Sprintf("до окончания сертификата осталось дней - %d", untilDays),
 		}
 	}
 
-	return &CheckResult{
+	return CheckResult{
 		RuleType: component,
 		OK:       OK,
 	}

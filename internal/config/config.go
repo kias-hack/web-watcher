@@ -30,9 +30,23 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 		return nil, errors.New("services not found")
 	}
 
+	templatesMap := make(map[string][]CheckConfig)
+	for _, template := range config.Templates {
+		templatesMap[template.Name] = template.Checks
+	}
+
 	serviceNames := make(map[string]struct{})
 	for idx, service := range config.Services {
 		slog.Debug("service", "o", service)
+		for _, tplName := range service.UseTemplates {
+			checks, ok := templatesMap[tplName]
+			if !ok {
+				return nil, fmt.Errorf("service [%s] - template `%s` not found", service.Name, tplName)
+			}
+
+			service.Check = append(service.Check, checks...)
+		}
+
 		if err := validateService(service); err != nil {
 			return nil, fmt.Errorf("found error in service[%d]: %w", idx, err)
 		}
@@ -58,6 +72,10 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 
 	var haveEmailNotifier bool
 	for idx, notification := range config.Notification {
+		if notification.RepeatInterval.Seconds() == 0 {
+			config.Notification[idx].RepeatInterval = 4 * time.Hour
+		}
+
 		slog.Debug("check notification", "o", notification)
 		if err := validateNotification(notification); err != nil {
 			return nil, fmt.Errorf("found error in service[%d]: %w", idx, err)
@@ -76,6 +94,10 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 		if err := validateSMTP(config.SMTP); err != nil {
 			return nil, fmt.Errorf("require smtp settings for email notifier: %w", err)
 		}
+	}
+
+	if config.HTTP.Timeout.Seconds() == 0 {
+		config.HTTP.Timeout = 2 * time.Second
 	}
 
 	return config, nil
@@ -101,6 +123,17 @@ type AppConfig struct {
 	Services     []*Service     `toml:"services"`
 	Notification []Notification `toml:"notification"`
 	SMTP         SMTPConnection `toml:"smtp"`
+	Templates    []Template     `toml:"templates"`
+	HTTP         HTTP           `toml:"http"`
+}
+
+type Template struct {
+	Name   string        `toml:"name"`
+	Checks []CheckConfig `toml:"checks"`
+}
+
+type HTTP struct {
+	Timeout time.Duration `toml:"timeout"`
 }
 
 type Service struct {
@@ -108,7 +141,8 @@ type Service struct {
 	URL      string        `toml:"url"`
 	Interval time.Duration `toml:"interval"`
 
-	Check []CheckConfig `toml:"check"`
+	Check        []CheckConfig `toml:"check"`
+	UseTemplates []string      `toml:"use_templates"`
 }
 
 func ptr[T any](v T) *T { return &v }

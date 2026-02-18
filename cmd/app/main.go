@@ -47,7 +47,7 @@ func main() {
 	}
 
 	watchdog := watchdog.NewWatchdog(bootstrap.MapConfigServiceToDomainService(config.Services), httpcheck.NewChecker(&http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: config.HTTP.Timeout,
 	}), ruleNotifier)
 
 	watchdog.Start()

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kias-hack/web-watcher/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,7 +19,7 @@ func TestStatusCodeRule(t *testing.T) {
 			Response: &http.Response{StatusCode: 200},
 		}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "status_code_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_STATUS_CODE, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -28,7 +29,7 @@ func TestStatusCodeRule(t *testing.T) {
 			Response: &http.Response{StatusCode: 500},
 		}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "status_code_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_STATUS_CODE, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "ожидается статус 200, получен 500", got.Message)
 	})
@@ -39,7 +40,7 @@ func TestLatencyRule(t *testing.T) {
 		rule := LatencyRule{maxLatencyMs: 200 * time.Millisecond}
 		input := &CheckInput{Latency: 100 * time.Millisecond}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "latency_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_MAX_LATENCY, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -47,7 +48,7 @@ func TestLatencyRule(t *testing.T) {
 		rule := LatencyRule{maxLatencyMs: 200 * time.Millisecond}
 		input := &CheckInput{Latency: 500 * time.Millisecond}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "latency_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_MAX_LATENCY, got.RuleType)
 		assert.Equal(t, Severity(WARN), got.OK)
 		assert.Equal(t, "ответ сервера превысил 200ms и составил 500ms", got.Message)
 	})
@@ -58,7 +59,7 @@ func TestBodyMatchRule(t *testing.T) {
 		rule := BodyMatchRule{substring: "ok"}
 		input := &CheckInput{Body: []byte("ok")}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "body_match_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_BODY_CONTAINS, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -66,9 +67,9 @@ func TestBodyMatchRule(t *testing.T) {
 		rule := BodyMatchRule{substring: "ok"}
 		input := &CheckInput{Body: []byte("fail")}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "body_match_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_BODY_CONTAINS, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
-		assert.Equal(t, "отсутствует строка 'ok'", got.Message)
+		assert.Equal(t, "отсутствует строка - ok", got.Message)
 	})
 }
 
@@ -81,7 +82,7 @@ func TestHeaderRule(t *testing.T) {
 			},
 		}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "header_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_HEADER, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -93,7 +94,7 @@ func TestHeaderRule(t *testing.T) {
 			},
 		}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "header_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_HEADER, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "значение '12312' заголовока 'X-Auth' не соответствует значению 'ok'", got.Message)
 	})
@@ -106,7 +107,7 @@ func TestHeaderRule(t *testing.T) {
 			},
 		}
 		got := rule.Check(t.Context(), input)
-		assert.Equal(t, "header_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_HEADER, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "заголовок 'X-Auth' отсутствует", got.Message)
 	})
@@ -127,7 +128,7 @@ func TestJSONFieldRule(t *testing.T) {
 			Body: []byte(`{"status":"ok"}`),
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "json_field_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_JSON_FIELD, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -138,7 +139,7 @@ func TestJSONFieldRule(t *testing.T) {
 			Body:     []byte(`{invalid`),
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "json_field_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_JSON_FIELD, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "ошибка парсинга тела сообщения", got.Message)
 	})
@@ -150,7 +151,7 @@ func TestJSONFieldRule(t *testing.T) {
 			Body:     []byte(`{}`),
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "json_field_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_JSON_FIELD, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Contains(t, got.Message, "некорректный заголовок ответа")
 	})
@@ -165,7 +166,7 @@ func TestJSONFieldRule(t *testing.T) {
 			Body:     []byte(`{"a":1}`),
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "json_field_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_JSON_FIELD, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Contains(t, got.Message, "отсутствует в ответе сервера")
 	})
@@ -180,7 +181,7 @@ func TestJSONFieldRule(t *testing.T) {
 			Body:     []byte(`{"status":"fail"}`),
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "json_field_checker", got.RuleType)
+		assert.Equal(t, config.TYPE_JSON_FIELD, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Contains(t, got.Message, "не соответсвует ожидаемому")
 	})
@@ -195,7 +196,7 @@ func TestSSLChecker(t *testing.T) {
 			Response: &http.Response{TLS: nil},
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "ssl_not_expired", got.RuleType)
+		assert.Equal(t, config.TYPE_SSL_NOT_EXPIRED, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "отсутствует информация о сертификате в ответе сервера", got.Message)
 	})
@@ -208,7 +209,7 @@ func TestSSLChecker(t *testing.T) {
 			},
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "ssl_not_expired", got.RuleType)
+		assert.Equal(t, config.TYPE_SSL_NOT_EXPIRED, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Equal(t, "сертификаты отсутствуют в ответе сервера", got.Message)
 	})
@@ -225,7 +226,7 @@ func TestSSLChecker(t *testing.T) {
 			},
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "ssl_not_expired", got.RuleType)
+		assert.Equal(t, config.TYPE_SSL_NOT_EXPIRED, got.RuleType)
 		assert.Equal(t, Severity(OK), got.OK)
 	})
 
@@ -240,7 +241,7 @@ func TestSSLChecker(t *testing.T) {
 			},
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "ssl_not_expired", got.RuleType)
+		assert.Equal(t, config.TYPE_SSL_NOT_EXPIRED, got.RuleType)
 		assert.Equal(t, Severity(CRIT), got.OK)
 		assert.Contains(t, got.Message, "до окончания сертификата осталось дней")
 	})
@@ -256,7 +257,7 @@ func TestSSLChecker(t *testing.T) {
 			},
 		}
 		got := rule.Check(ctx, input)
-		assert.Equal(t, "ssl_not_expired", got.RuleType)
+		assert.Equal(t, config.TYPE_SSL_NOT_EXPIRED, got.RuleType)
 		assert.Equal(t, Severity(WARN), got.OK)
 	})
 }

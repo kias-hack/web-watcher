@@ -1,0 +1,13 @@
+[Unit]
+Description=Web Watcher - site availability and checks monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/web-watcher -config /etc/web-watcher/config.toml
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

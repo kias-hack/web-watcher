@@ -74,38 +74,24 @@ func (w *Watchdog) Stop(ctx context.Context) error {
 	}
 }
 
-func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain.CheckResult) {
+func (w *Watchdog) handleServiceResult(service *domain.Service, result []domain.CheckResult) {
 	logger := slog.With("component", "watchdog", "op", "handleServiceResult", "service", service.Name)
 
-	var currentStatus domain.Severity = domain.OK
-	for _, res := range result {
-		if res.OK == domain.CRIT {
-			currentStatus = domain.CRIT
-			break
-		}
-
-		if res.OK == domain.WARN {
-			currentStatus = domain.CRIT
-		}
-	}
-
-	var oldServiceStatus domain.Severity
-
 	w.mu.Lock()
-	serviceStatus, ok := w.serviceStatuses[service]
+	serviceState, ok := w.serviceStatuses[service]
 	if !ok {
-		serviceStatus = &domain.ServiceStatus{
-			Status: domain.OK,
-		}
-		w.serviceStatuses[service] = serviceStatus
+		serviceState = &domain.ServiceStatus{}
+		w.serviceStatuses[service] = serviceState
 	}
-	oldServiceStatus = serviceStatus.Status
-	serviceStatus.Status = currentStatus
-	w.mu.Unlock()
+	oldState := *serviceState
+	serviceState.CheckResults = result
 
-	logger.Debug("got service status", "severity", currentStatus, "old_status", oldServiceStatus)
+	logger.Debug("got service status")
+
+	now := time.Now()
 
 	var foundNotifier bool = false
+	var toSend []domain.Notifier
 	for _, rule := range w.alertRules {
 		logger.Debug("check rule", "rule", rule.Rule)
 
@@ -117,19 +103,29 @@ func (w *Watchdog) handleServiceResult(service *domain.Service, result []*domain
 
 		foundNotifier = true
 
-		if canSendNotification(rule.Rule, currentStatus, oldServiceStatus) {
-			logger.Debug("send notification")
-
-			rule.Notifier.Notify(w.ctx, &domain.AlertEvent{
-				ServiceName: service.Name,
-				Status:      currentStatus,
-				Results:     result,
-			})
+		if domain.CanSendNotify(rule.Rule, result, oldState, now) {
+			toSend = append(toSend, rule.Notifier)
 		}
 	}
 
+	if len(toSend) > 0 {
+		serviceState.LastSent = now
+	}
+
+	w.mu.Unlock()
+
+	event := &domain.AlertEvent{
+		ServiceName: service.Name,
+		Status:      domain.GetMaxSeverity(result),
+		Results:     result,
+	}
+	for _, notifier := range toSend {
+		logger.Debug("send notification")
+		notifier.Notify(w.ctx, event)
+	}
+
 	if !foundNotifier {
-		logger.Error("for service not found notifications")
+		logger.Warn("for service not found notifications")
 	}
 }
 
@@ -150,6 +146,15 @@ func (w *Watchdog) worker(service *domain.Service) {
 			results, err := w.serviceChecker.ServiceCheck(w.ctx, service)
 			if err != nil {
 				logger.Error("error occured when service check", "err", err)
+
+				w.handleServiceResult(service, []domain.CheckResult{
+					{
+						RuleType: "available",
+						OK:       domain.CRIT,
+						Message:  fmt.Sprintf("ошибка запроса к сервису: %s", err.Error()),
+					},
+				})
+				continue
 			}
 
 			w.handleServiceResult(service, results)

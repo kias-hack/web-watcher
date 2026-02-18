@@ -21,7 +21,7 @@ type HTTPServiceChecker struct {
 	httpClient *http.Client
 }
 
-func (c *HTTPServiceChecker) ServiceCheck(ctx context.Context, service *domain.Service) ([]*domain.CheckResult, error) {
+func (c *HTTPServiceChecker) ServiceCheck(ctx context.Context, service *domain.Service) ([]domain.CheckResult, error) {
 	logger := slog.With("component", "httpservicechecker", "service_name", service.Name, "url", service.URL)
 
 	logger.Debug("starts service check")
@@ -54,7 +54,7 @@ func (c *HTTPServiceChecker) ServiceCheck(ctx context.Context, service *domain.S
 
 	logger.Debug("runs checks")
 
-	var result []*domain.CheckResult
+	var result []domain.CheckResult
 	for _, rule := range service.Rules {
 		result = append(result, rule.Check(ctx, checkInput))
 	}

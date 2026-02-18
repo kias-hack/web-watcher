@@ -62,6 +62,8 @@ func MapConfigNotifierToDomainRoutedNotifier(cfg config.AppConfig) ([]domain.Rou
 				ServiceNames:       cfgNotification.ServiceNames,
 				MinSeverity:        severity,
 				OnlyOnStatusChange: cfgNotification.OnlyOnStatusChange,
+				RepeatInterval:     cfgNotification.RepeatInterval,
+				NotifyOnRecovery:   *cfgNotification.NotifyOnRecovery,
 			},
 			Notifier: notifier,
 		})
