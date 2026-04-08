@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -46,9 +47,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	watchdog := watchdog.NewWatchdog(bootstrap.MapConfigServiceToDomainService(config.Services), httpcheck.NewChecker(&http.Client{
+	httpClient := &http.Client{
 		Timeout: config.HTTP.Timeout,
-	}), ruleNotifier)
+	}
+	if len(config.HTTP.DNSResolvers) > 0 {
+		httpClient = newHTTPClientWithDNS(config.HTTP.DNSResolvers, config.HTTP.Timeout)
+	}
+
+	watchdog := watchdog.NewWatchdog(bootstrap.MapConfigServiceToDomainService(config.Services), httpcheck.NewChecker(httpClient), ruleNotifier)
 
 	watchdog.Start()
 
@@ -69,4 +75,35 @@ func main() {
 	}
 
 	slog.Info("Bye!")
+}
+
+func newHTTPClientWithDNS(dnsAddrs []string, timeout time.Duration) *http.Client {
+	resolver := &net.Resolver{
+		PreferGo: true, // важно: использовать Go-resolver, чтобы сработал кастомный Dial
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 3 * time.Second}
+			var lastErr error
+			for _, dnsAddr := range dnsAddrs {
+				conn, err := d.DialContext(ctx, "udp", dnsAddr)
+				if err == nil {
+					return conn, nil
+				}
+				lastErr = err
+			}
+
+			return nil, lastErr
+		},
+	}
+	dialer := &net.Dialer{
+		Timeout:  5 * time.Second,
+		Resolver: resolver,
+	}
+	tr := &http.Transport{
+		DialContext:         dialer.DialContext,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	return &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
 }

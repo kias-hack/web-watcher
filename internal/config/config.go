@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -100,6 +102,24 @@ func CreateConfig(configPath string) (*AppConfig, error) {
 		config.HTTP.Timeout = 2 * time.Second
 	}
 
+	if len(config.HTTP.DNSResolvers) > 0 {
+		var dnsResolvers []string
+		for _, resolver := range config.HTTP.DNSResolvers {
+			addr := strings.TrimSpace(resolver)
+			if addr == "" {
+				continue
+			}
+
+			if _, err := net.ResolveUDPAddr("udp", addr); err != nil {
+				return nil, fmt.Errorf("invalid http dns_resolver address '%s': %w", addr, err)
+			}
+
+			dnsResolvers = append(dnsResolvers, addr)
+		}
+
+		config.HTTP.DNSResolvers = dnsResolvers
+	}
+
 	return config, nil
 }
 
@@ -133,7 +153,8 @@ type Template struct {
 }
 
 type HTTP struct {
-	Timeout time.Duration `toml:"timeout"`
+	Timeout      time.Duration `toml:"timeout"`
+	DNSResolvers []string      `toml:"dns_resolvers"`
 }
 
 type Service struct {

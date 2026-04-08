@@ -288,6 +288,64 @@ use_templates = ["http_ok", "missing"]
 		assert.Error(t, err)
 		assert.ErrorContains(t, err, "template `missing` not found")
 	})
+
+	t.Run("read optional http dns_resolver list from config", func(t *testing.T) {
+		configContent := `
+[http]
+timeout = "5s"
+dns_resolvers = ["1.1.1.1:53", "8.8.8.8:53"]
+
+[[notification]]
+type = "webhook"
+services = ["svc"]
+min_severity = "ok"
+url = "https://example.com/"
+
+[[services]]
+name = "svc"
+url = "https://example.ru"
+interval = "5s"
+
+[[services.check]]
+type = "status_code"
+expected = 200
+`
+
+		path := createConfig(t, configContent)
+
+		cfg, err := CreateConfig(path)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"1.1.1.1:53", "8.8.8.8:53"}, cfg.HTTP.DNSResolvers)
+		assert.Equal(t, 5*time.Second, cfg.HTTP.Timeout)
+	})
+
+	t.Run("invalid http dns_resolver address", func(t *testing.T) {
+		configContent := `
+[http]
+dns_resolvers = ["invalid-address"]
+
+[[notification]]
+type = "webhook"
+services = ["svc"]
+min_severity = "ok"
+url = "https://example.com/"
+
+[[services]]
+name = "svc"
+url = "https://example.ru"
+interval = "5s"
+
+[[services.check]]
+type = "status_code"
+expected = 200
+`
+
+		path := createConfig(t, configContent)
+
+		_, err := CreateConfig(path)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "invalid http dns_resolver address")
+	})
 }
 
 func createConfig(t *testing.T, content string) string {
